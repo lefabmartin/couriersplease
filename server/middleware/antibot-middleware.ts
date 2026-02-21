@@ -150,19 +150,30 @@ export async function antibotMiddleware(
     }
 
     // Filtre géo : rediriger vers Google toute IP dont le pays n'est pas dans la liste autorisée
-    // Liste = panel admin (Geo) → allowed-countries.json. Vide = pas de restriction.
+    // getGeoLocation retourne toujours un pays (XX = "Non identifié" si résolution impossible).
     const allowedCountries = await getAllowedCountries();
     if (allowedCountries.length > 0) {
       const geo = await getGeoLocation(ip);
-      const countryCode = geo?.countryCode?.trim().toUpperCase().slice(0, 2);
+      // XX = Non identifié : laisser passer (fail open)
+      if (geo.countryCode === "XX") {
+        await logBotActivity(ip, "Non identifié (request allowed)", "logged_not_blocked", {
+          details: {
+            source: "geo_filter",
+            countryCode: "XX",
+            country: geo.country,
+          },
+        });
+        return next();
+      }
+      const countryCode = geo.countryCode?.trim().toUpperCase().slice(0, 2);
       const isAllowedCountry = !!countryCode && countryCode.length === 2 && allowedCountries.includes(countryCode);
       if (!isAllowedCountry) {
-        const reason = geo ? `Country not allowed: ${geo.countryCode} (${geo.country})` : "Country unknown (geo lookup failed)";
+        const reason = `Country not allowed: ${geo.countryCode} (${geo.country})`;
         await logBotActivity(ip, reason, "blocked", {
           details: {
             source: "geo_filter",
-            countryCode: geo?.countryCode ?? "??",
-            country: geo?.country ?? geo?.countryCode ?? "—",
+            countryCode: geo.countryCode,
+            country: geo.country,
           },
         });
         await addToBlacklist(ip, reason);
@@ -235,11 +246,10 @@ export async function antibotMiddleware(
           blockScore += 100;
           blockReason = `Datacenter detected: ${datacenterResult.org || "Unknown"}`;
         } else if (config.block_datacenter) {
-          // Vérifier si le pays est autorisé
           const geo = await getGeoLocation(ip);
           const allowedCountries = await getAllowedCountries();
-          
-          if (geo && !allowedCountries.includes(geo.countryCode)) {
+          const nonAllowed = geo.countryCode !== "XX" && !allowedCountries.includes(geo.countryCode);
+          if (nonAllowed) {
             blockScore += 100;
             blockReason = `Datacenter detected in non-allowed country: ${geo.countryCode}`;
           } else {

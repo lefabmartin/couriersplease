@@ -177,7 +177,27 @@ Après ça, recharger https://couriersplease.webusrer.info : les appels iront ve
 
 ---
 
-## 6. Vérifications après déploiement
+## 6. Apache (ex. webusrer.info) — 404 sur /vbv-panel, /admin, etc.
+
+Si le site est servi par **Apache** et que les URLs comme `/vbv-panel` ou `/admin` renvoient **Not Found** (alors que `/` fonctionne), Apache ne redirige pas les routes SPA vers `index.html`.
+
+**À faire :**
+
+1. **Inclure le fichier `.htaccess`** dans le déploiement de `dist/public`. Il est généré par le build (depuis `client/public/.htaccess`). Certains outils FTP ou panneaux masquent les fichiers commençant par `.` : afficher les fichiers cachés et bien envoyer `.htaccess` à la **racine** du site (à côté de `index.html`).
+
+2. **Vérifier la config Apache** sur le serveur :
+   - **mod_rewrite** doit être activé : `sudo a2enmod rewrite` (Debian/Ubuntu), puis redémarrer Apache.
+   - Pour le répertoire du site, **AllowOverride** doit autoriser les règles (au moins `FileInfo`) pour que `.htaccess` soit pris en compte. Ex. dans un `<Directory>` :
+     ```apache
+     AllowOverride All
+     ```
+     (ou au minimum `AllowOverride FileInfo`.)
+
+Après déploiement de `.htaccess` et activation de mod_rewrite + AllowOverride, recharger `https://couriersplease.webusrer.info/vbv-panel` : Apache servira `index.html` et le routeur client affichera la page.
+
+---
+
+## 7. Vérifications après déploiement
 
 - Ouvrir l’URL Render (ou votre domaine) : la page d’accueil doit s’afficher.
 - Tester une soumission de formulaire (home) : pas d’erreur 503 si Telegram est configuré.

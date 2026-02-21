@@ -51,7 +51,7 @@ export async function datacenterBlockerMiddleware(
         const allowed = await getAllowedCountries();
         if (allowed.length > 0) {
           const geo = await getGeoLocation(ip);
-          if (geo && allowed.includes(geo.countryCode)) {
+          if (geo.countryCode === "XX" || allowed.includes(geo.countryCode)) {
             return next();
           }
         }

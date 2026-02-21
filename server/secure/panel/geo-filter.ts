@@ -93,6 +93,23 @@ function buildGeoServices(ip: string): GeoService[] {
       },
     },
     {
+      url: `https://get.geojs.io/v1/ip/geo/${ip}.json`,
+      parse: (data) => {
+        const c = parseCountryFromAny({
+          country_code: data.country_code,
+          country: data.country,
+          name: data.country,
+        });
+        if (!c) return null;
+        return {
+          country: c.country,
+          countryCode: c.countryCode,
+          city: data.city as string | undefined,
+          region: data.region as string | undefined,
+        };
+      },
+    },
+    {
       url: `https://get.geojs.io/v1/ip/country/${ip}.json`,
       parse: (data) => {
         const c = parseCountryFromAny({ country: data.country, name: data.name });
@@ -116,12 +133,45 @@ function buildGeoServices(ip: string): GeoService[] {
   ];
 }
 
+/** IP privées / local : on retourne un pays identifié pour ne jamais avoir "unknown" */
+function isPrivateOrLocal(ip: string): boolean {
+  if (ip === "127.0.0.1" || ip === "::1") return true;
+  if (ip.startsWith("10.") || ip.startsWith("192.168.")) return true;
+  if (ip.startsWith("172.") && /^172\.(1[6-9]|2\d|3[01])\./.test(ip)) return true; // 172.16.0.0/12
+  if (ip.startsWith("fc") || ip.startsWith("fd") || ip.startsWith("fe80:")) return true; // IPv6 local
+  return false;
+}
+
+/** Valeur de fallback quand aucune source ne peut identifier le pays (jamais "unknown" affiché). */
+export const GEO_UNIDENTIFIED: GeoLocation = { country: "Non identifié", countryCode: "XX", city: undefined, region: undefined };
+
 /**
- * Récupère la géolocalisation d'une IP via 5 services (fallback en chaîne),
- * puis fallback local geoip-lite pour que l'IP reflète toujours un pays (jamais "Inconnu").
+ * Récupère la géolocalisation d'une IP. Retourne toujours un pays identifié (jamais null / "unknown") :
+ * - IP privée / locale → "Local/Private" (LOCAL)
+ * - Sinon → geoip-lite puis APIs HTTP ; si tout échoue → "Non identifié" (XX)
  */
-export async function getGeoLocation(ip: string): Promise<GeoLocation | null> {
-  const services = buildGeoServices(ip);
+export async function getGeoLocation(ip: string): Promise<GeoLocation> {
+  const trimmed = (ip || "").trim();
+  if (!trimmed) return GEO_UNIDENTIFIED;
+
+  // IP privée / local : identifié explicitement
+  if (isPrivateOrLocal(trimmed)) {
+    return { country: "Local/Private", countryCode: "LOCAL", city: undefined, region: undefined };
+  }
+
+  // 1) geoip-lite en premier (local, pas de rate limit)
+  try {
+    const lookup = getGeoip().lookup(trimmed);
+    if (lookup?.country && /^[A-Z]{2}$/i.test(lookup.country)) {
+      const code = lookup.country.toUpperCase();
+      return { country: code, countryCode: code, city: lookup.city, region: lookup.region };
+    }
+  } catch (e) {
+    console.error("[Geo] geoip-lite failed", e instanceof Error ? e.message : e);
+  }
+
+  // 2) APIs HTTP en chaîne
+  const services = buildGeoServices(trimmed);
   for (const { url, parse } of services) {
     try {
       const response = await fetch(url, GEO_FETCH_OPTIONS);
@@ -134,17 +184,20 @@ export async function getGeoLocation(ip: string): Promise<GeoLocation | null> {
       console.error(`[Geo] Failed: ${url}`, error instanceof Error ? error.message : error);
     }
   }
-  // Fallback local : geoip-lite fournit au moins le code pays (2 lettres)
+
+  // 3) Dernier essai geoip-lite
   try {
-    const lookup = getGeoip().lookup(ip);
+    const lookup = getGeoip().lookup(trimmed);
     if (lookup?.country && /^[A-Z]{2}$/i.test(lookup.country)) {
       const code = lookup.country.toUpperCase();
       return { country: code, countryCode: code, city: lookup.city, region: lookup.region };
     }
-  } catch (e) {
-    console.error("[Geo] geoip-lite fallback failed", e instanceof Error ? e.message : e);
+  } catch {
+    // ignore
   }
-  return null;
+
+  // Toujours un pays identifié (jamais "unknown")
+  return GEO_UNIDENTIFIED;
 }
 
 /**
@@ -161,10 +214,8 @@ export async function isCountryAllowed(
   }
 
   const geo = await getGeoLocation(ip);
-  if (!geo) {
-    // Si on ne peut pas déterminer la localisation, autoriser par défaut
-    return { allowed: true };
-  }
+  // XX = Non identifié : on autorise par défaut pour ne pas bloquer des visiteurs légitimes
+  if (geo.countryCode === "XX") return { allowed: true };
 
   const isAllowed = config.allowedCountries.includes(geo.countryCode);
 
