@@ -110,6 +110,14 @@ export async function registerRoutes(
 ): Promise<Server> {
 
   /**
+   * GET /api/health
+   * Vérification que le backend Node répond (utile pour domaine personnalisé / proxy).
+   */
+  app.get("/api/health", (_req: Request, res: Response) => {
+    return res.status(200).json({ status: "ok" });
+  });
+
+  /**
    * GET /api/geo-gate
    * Portail géo : le frontend appelle cette route au chargement (SecurityCheck).
    * Le middleware antibot (filtre géo) s'exécute avant ; si pays non autorisé → 302 vers Google.

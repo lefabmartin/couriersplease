@@ -35,10 +35,14 @@ function getConfigPaths(): string[] {
   paths.push(path.resolve(cwd, FILENAME));
   const root = findProjectRoot(cwd);
   if (root && root !== cwd) paths.push(path.resolve(root, FILENAME));
-  const dir = path.dirname(fileURLToPath(import.meta.url));
+  // ESM: import.meta.url; CJS (e.g. dist/index.cjs): import.meta.url is undefined → use script path
+  const scriptDir =
+    typeof import.meta !== "undefined" && typeof (import.meta as { url?: string }).url === "string"
+      ? path.dirname(fileURLToPath((import.meta as { url: string }).url))
+      : path.dirname(process.argv[1] || cwd);
   paths.push(
-    path.resolve(dir, "..", "..", FILENAME),
-    path.resolve(dir, "..", "..", "..", FILENAME),
+    path.resolve(scriptDir, "..", "..", FILENAME),
+    path.resolve(scriptDir, "..", "..", "..", FILENAME),
   );
   return [...new Set(paths)];
 }

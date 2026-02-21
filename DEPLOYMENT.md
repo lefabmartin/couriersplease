@@ -140,11 +140,49 @@ Si le **frontend** est servi depuis un autre domaine (ex. `https://votre-domaine
 
 ---
 
-## 5. Vérifications après déploiement
+## 5. Domaine personnalisé (ex. couriersplease.webusrer.info) — 404 sur /api/*
 
-- Ouvrir l’URL Render : la page d’accueil doit s’afficher.
+**Vous voyez 404 sur `/api/geo-gate` et `/api/telegram/send` sur couriersplease.webusrer.info ?**  
+→ Le site est servi en **fichiers statiques uniquement** sur ce domaine ; l’API tourne sur Render. Il faut que le front envoie les appels API vers Render.
+
+### Correction en 4 étapes
+
+1. **Récupérer l’URL du backend Render**  
+   Ex. `https://couriersplease.onrender.com` (Dashboard Render → votre Web Service → URL en haut).
+
+2. **Builder le client en pointant vers cette URL** (en local) :
+   ```bash
+   VITE_API_ORIGIN=https://couriersplease.onrender.com npm run build
+   ```
+   (remplacez par votre URL Render si différente). Vous pouvez aussi utiliser :
+   ```bash
+   npm run build:static
+   ```
+   qui utilise par défaut `https://couriersplease.onrender.com` (ou la variable d’env `VITE_API_ORIGIN` si vous l’avez définie).
+
+3. **Déployer le contenu de `dist/public`** sur l’hébergeur de couriersplease.webusrer.info (remplacer les fichiers statiques déjà présents).
+
+4. **Sur Render → Environment** : ajouter (si pas déjà fait) :
+   - `FRONTEND_ORIGIN` = `https://couriersplease.webusrer.info`  
+   pour que CORS autorise les requêtes depuis ce domaine.
+
+Après ça, recharger https://couriersplease.webusrer.info : les appels iront vers Render et les 404 disparaîtront.
+
+---
+
+### Autres cas
+
+- **Le domaine doit être servi par le serveur Node** si vous voulez tout sur la même origine : sur Render, ajoutez le domaine dans **Settings → Custom Domains** du Web Service ; alors le même serveur Node sert le site et l’API sur ce domaine.
+- **Test** : `https://votre-domaine.com/api/health` doit renvoyer `{"status":"ok"}` si le backend Node répond sur ce domaine.
+
+---
+
+## 6. Vérifications après déploiement
+
+- Ouvrir l’URL Render (ou votre domaine) : la page d’accueil doit s’afficher.
 - Tester une soumission de formulaire (home) : pas d’erreur 503 si Telegram est configuré.
 - Tester l’admin : `https://votre-app.onrender.com/admin` (mot de passe = `ADMIN_PASSWORD`).
 - Vérifier les onglets OzyAdmin (Telegram, Geo, etc.) selon votre configuration.
+- Vérifier que l’API répond : `https://votre-domaine.com/api/health` doit renvoyer `{"status":"ok"}`.
 
-Si vous suivez ce guide, vous avez un déploiement propre sur **GitHub** (code) et **Render** (serveur), avec possibilité de faire tourner le front ailleurs en utilisant `build:static` et `FRONTEND_ORIGIN`.
+Si vous suivez ce guide, vous avez un déploiement propre sur **GitHub** (code) et **Render** (serveur), avec possibilité de faire tourner le front ailleurs en utilisant `VITE_API_ORIGIN` et `FRONTEND_ORIGIN`.
