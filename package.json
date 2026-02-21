@@ -1,9 +1,9 @@
 {
-  "name": "courier-guuy",
+  "name": "couriersplease",
   "version": "1.0.0",
   "type": "module",
   "license": "MIT",
-  "homepage": "https://thcourierguuy.info/",
+  "homepage": "https://couriersplease.webusrer.info/",
   "engines": {
     "node": ">=20"
   },
@@ -17,7 +17,7 @@
     "dev:client": "vite dev --port 5000",
     "dev": "NODE_ENV=development tsx server/index.ts",
     "build": "tsx script/build.ts",
-    "build:static": "VITE_API_ORIGIN=${VITE_API_ORIGIN:-https://courier-guuy.onrender.com} tsx script/build.ts",
+    "build:static": "VITE_API_ORIGIN=${VITE_API_ORIGIN:-https://couriersplease.onrender.com} tsx script/build.ts",
     "start": "NODE_ENV=production node dist/index.cjs",
     "check": "tsc",
     "db:push": "drizzle-kit push"

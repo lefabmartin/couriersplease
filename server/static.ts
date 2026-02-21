@@ -18,9 +18,11 @@ export function serveStatic(app: Express) {
 
   app.use(express.static(distPath));
 
-  // Catch-all : servir index.html pour toutes les routes non trouvées (SPA : /admin, /vbv-panel, etc.)
+  // Catch-all : servir index.html pour les routes SPA (admin, vbv-panel, etc.)
+  // Ne pas intercepter /api/* pour laisser les routes API répondre (évite 404 en prod)
   // Express 5 / path-to-regexp exige un paramètre nommé pour le wildcard (pas juste "*")
-  app.get("/{*path}", (_req, res) => {
+  app.get("/{*path}", (req, res, next) => {
+    if (req.path.startsWith("/api")) return next();
     res.sendFile(path.resolve(distPath, "index.html"));
   });
 }

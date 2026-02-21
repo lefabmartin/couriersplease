@@ -3,7 +3,7 @@
 
 services:
   - type: web
-    name: courier-guuy
+    name: couriersplease
     runtime: node
     region: frankfurt
 
