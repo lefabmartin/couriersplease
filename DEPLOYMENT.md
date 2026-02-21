@@ -59,7 +59,7 @@ L’app est un **serveur Node.js** qui sert à la fois l’API et le frontend (V
 
 1. [Render](https://render.com) → **Dashboard** → **New** → **Web Service**.
 2. Connectez votre dépôt GitHub et choisissez le repo du projet.
-3. Renseignez :
+3. Renseignez (dans le champ Build Command, coller la commande **sans** les caractères \` d’affichage code) :
 
 | Champ | Valeur |
 |--------|--------|
@@ -67,9 +67,14 @@ L’app est un **serveur Node.js** qui sert à la fois l’API et le frontend (V
 | **Region** | Choisir la plus proche des utilisateurs |
 | **Branch** | `main` |
 | **Runtime** | `Node` |
-| **Build Command** | `npm install --legacy-peer-deps --include=dev && npm run build` |
+| **Build Command** | Voir encadré ci-dessous (sans backticks) |
 | **Start Command** | `npm start` |
 | **Instance Type** | Free (ou paid pour plus de ressources) |
+
+**Build Command à saisir exactement** (copier-coller cette ligne, sans rien ajouter avant/après) :
+```
+npm install --legacy-peer-deps --include=dev && npm run build
+```
 
 ### 2.2 Variables d’environnement (Render)
 
