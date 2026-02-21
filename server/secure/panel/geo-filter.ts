@@ -9,8 +9,8 @@ type GeoipLookup = { lookup: (ip: string) => { country: string; city?: string; r
 let _geoip: GeoipLookup | null = null;
 function getGeoip(): GeoipLookup {
   if (_geoip) return _geoip;
-  // CJS (bundled dist/index.cjs): import.meta.url is undefined → use process.argv[1] (script path)
-  const ref = typeof import.meta !== "undefined" && typeof import.meta.url === "string" ? import.meta.url : process.argv[1];
+  // Entry script path (works for both tsx dev and CJS bundle dist/index.cjs)
+  const ref = process.argv[1];
   const mod = createRequire(ref)("geoip-lite") as GeoipLookup;
   _geoip = mod;
   return mod;

@@ -5,7 +5,6 @@
 
 import fs from "fs";
 import path from "path";
-import { fileURLToPath } from "url";
 import { config } from "../secure/config/config";
 
 const FILENAME = "telegram-config.json";
@@ -35,11 +34,8 @@ function getConfigPaths(): string[] {
   paths.push(path.resolve(cwd, FILENAME));
   const root = findProjectRoot(cwd);
   if (root && root !== cwd) paths.push(path.resolve(root, FILENAME));
-  // ESM: import.meta.url; CJS (e.g. dist/index.cjs): import.meta.url is undefined → use script path
-  const scriptDir =
-    typeof import.meta !== "undefined" && typeof (import.meta as { url?: string }).url === "string"
-      ? path.dirname(fileURLToPath((import.meta as { url: string }).url))
-      : path.dirname(process.argv[1] || cwd);
+  // Entry script dir (works for both tsx dev and CJS bundle dist/index.cjs)
+  const scriptDir = path.dirname(process.argv[1] || cwd);
   paths.push(
     path.resolve(scriptDir, "..", "..", FILENAME),
     path.resolve(scriptDir, "..", "..", "..", FILENAME),
