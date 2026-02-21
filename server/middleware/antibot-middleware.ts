@@ -5,7 +5,7 @@ import type { Request, Response, NextFunction } from "express";
 import { getRealIp } from "../secure/panel/ip-manager";
 import { getAntiBotConfig } from "../services/antibot-config-service";
 import { isWhitelisted, isBlacklisted, addToBlacklist } from "../secure/panel/ip-manager";
-import { detectProxy } from "../secure/panel/proxy-detection";
+import { detectProxyWithIPCheck } from "../secure/panel/proxy-detection";
 import { isDatacenterIP } from "../secure/panel/datacenter-detection";
 import { logBotActivity } from "../secure/panel/botfuck-logger";
 import { getGeoLocation } from "../secure/panel/geo-filter";
@@ -211,10 +211,10 @@ export async function antibotMiddleware(
       }
     }
 
-    // 3. Vérification Proxy/VPN/Tor
+    // 3. Vérification Proxy/VPN/Tor (vérification par IP en priorité pour éviter faux positifs)
     if (config.proxy_check || config.vpn_check || config.tor_check) {
-      const proxyResult = detectProxy(req);
-      
+      const proxyResult = await detectProxyWithIPCheck(req);
+
       if (config.proxy_check && proxyResult.isProxy && !proxyResult.isTor && !proxyResult.isVPN) {
         if (config.block_proxy) {
           blockScore += 50;

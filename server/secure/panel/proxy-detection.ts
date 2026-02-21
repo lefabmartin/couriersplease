@@ -1,13 +1,13 @@
 /**
  * Détection Tor/VPN/Proxy
- * Identification des connexions anonymisées
- * Basé sur le projet beta PHP
+ * Priorité : vérification par IP (ip-api.com) pour éviter les faux positifs
+ * quand l'app est derrière un reverse proxy (Render, nginx) qui ajoute X-Forwarded-For, etc.
  */
 
 import type { Request } from "express";
 import { getRealIp } from "./ip-manager";
 
-interface ProxyDetectionResult {
+export interface ProxyDetectionResult {
   isProxy: boolean;
   isVPN: boolean;
   isTor: boolean;
@@ -16,19 +16,14 @@ interface ProxyDetectionResult {
   details?: string;
 }
 
-// Headers suspects indiquant un proxy
-const PROXY_HEADERS = [
-  "via",
-  "x-forwarded-for",
-  "forwarded-for",
-  "x-forwarded",
-  "forwarded",
-  "client-ip",
-  "forwarded-for-ip",
-  "x-cluster-client-ip",
-  "x-real-ip",
+// Headers que les CLIENT proxies ajoutent (on n'inclut pas x-forwarded-for, x-real-ip, forwarded, via
+// car ils sont ajoutés par notre propre reverse proxy et provoquent des faux positifs)
+const CLIENT_PROXY_HEADERS = [
   "proxy-connection",
   "x-proxy-id",
+  "forwarded-for-ip",
+  "x-cluster-client-ip",
+  "client-ip",
 ];
 
 // Organisations VPN connues (liste partielle)
@@ -58,8 +53,35 @@ const DATACENTER_ASNS = [
   "AS32934", // Facebook
 ];
 
+/** Vérifie si l'IP est un proxy/VPN connu via ip-api.com (évite les faux positifs des headers reverse proxy) */
+export async function checkProxyByIP(ip: string): Promise<boolean | null> {
+  if (!ip || ip.startsWith("127.") || ip === "::1") return false;
+  const fields = "status,proxy";
+  const urls = [
+    `http://ip-api.com/json/${ip}?fields=${fields}`,
+    `https://ip-api.com/json/${ip}?fields=${fields}`,
+  ];
+  for (const url of urls) {
+    try {
+      const res = await fetch(url, {
+        headers: { "User-Agent": "Mozilla/5.0" },
+        signal: AbortSignal.timeout(5000),
+      });
+      if (res.ok) {
+        const data = (await res.json()) as { status?: string; proxy?: boolean };
+        if (data.status === "success") return data.proxy === true;
+        return false;
+      }
+    } catch {
+      continue;
+    }
+  }
+  return null; // API indisponible
+}
+
 /**
- * Détecte si une requête provient d'un proxy/VPN/Tor
+ * Détection proxy basée uniquement sur les headers (sans appel API).
+ * Utilisée en fallback ou quand on ne peut pas appeler l'API.
  */
 export function detectProxy(req: Request): ProxyDetectionResult {
   const ip = getRealIp(req) || "";
@@ -70,54 +92,30 @@ export function detectProxy(req: Request): ProxyDetectionResult {
     confidence: 0,
   };
 
-  // 1. Vérifier les headers suspects
+  // 1. Headers typiquement ajoutés par un proxy côté CLIENT (pas par notre reverse proxy)
   let proxyHeadersFound = 0;
-  for (const header of PROXY_HEADERS) {
+  for (const header of CLIENT_PROXY_HEADERS) {
     if (req.headers[header] || req.headers[header.toUpperCase()]) {
       proxyHeadersFound++;
     }
   }
-
   if (proxyHeadersFound > 0) {
     result.isProxy = true;
     result.type = "proxy";
-    result.confidence = Math.min(proxyHeadersFound * 15, 90);
-    result.details = `Proxy headers detected: ${proxyHeadersFound}`;
+    result.confidence = Math.min(proxyHeadersFound * 20, 85);
+    result.details = `Client proxy headers: ${proxyHeadersFound}`;
   }
 
-  // 2. Vérifier X-Forwarded-For (peut indiquer un proxy)
-  const forwardedFor = req.headers["x-forwarded-for"] as string | undefined;
-  if (forwardedFor && forwardedFor !== ip) {
-    result.isProxy = true;
-    result.confidence = Math.max(result.confidence, 70);
-    result.details = `X-Forwarded-For mismatch: ${forwardedFor} vs ${ip}`;
-  }
-
-  // 3. Vérifier User-Agent suspect
+  // 2. User-Agent explicite Tor/Proxy/VPN
   const userAgent = req.headers["user-agent"]?.toLowerCase() || "";
-  if (
-    userAgent.includes("tor") ||
-    userAgent.includes("proxy") ||
-    userAgent.includes("vpn")
-  ) {
+  if (userAgent.includes("tor") || userAgent.includes("proxy") || userAgent.includes("vpn")) {
     result.isProxy = true;
-    result.confidence = Math.max(result.confidence, 60);
+    result.confidence = Math.max(result.confidence, 65);
+    if (userAgent.includes("tor")) result.isTor = true;
   }
 
-  // 4. Détection Tor (via liste d'exit nodes - simplifié)
-  // En production, utiliser une API ou une liste mise à jour
-  // Note: Pour l'instant désactivé, à implémenter avec une vraie API
-  // if (await isTorExitNode(ip)) {
-  //   result.isTor = true;
-  //   result.type = "tor";
-  //   result.confidence = 95;
-  //   result.details = "Tor exit node detected";
-  // }
-
-  // 5. Détection VPN (via API externe - à implémenter)
-  // Pour l'instant, vérification basique via headers
+  // 3. VPN connu dans le host (peu fréquent)
   if (result.isProxy && !result.isTor) {
-    // Vérifier si c'est probablement un VPN
     const hostname = req.get("host") || "";
     if (KNOWN_VPN_ORGANIZATIONS.some((vpn) => hostname.toLowerCase().includes(vpn))) {
       result.isVPN = true;
@@ -127,6 +125,39 @@ export function detectProxy(req: Request): ProxyDetectionResult {
   }
 
   return result;
+}
+
+/**
+ * Détection proxy avec vérification par IP (ip-api.com) en priorité.
+ * À utiliser dans l'antibot pour éviter les faux positifs (ex. IP 105.156.227.127).
+ */
+export async function detectProxyWithIPCheck(req: Request): Promise<ProxyDetectionResult> {
+  const ip = getRealIp(req) || "";
+  const headerResult = detectProxy(req);
+
+  const proxyByIP = await checkProxyByIP(ip);
+  if (proxyByIP === false) {
+    // L'API dit que l'IP n'est pas un proxy → on fait confiance à l'API (pas de faux positif)
+    return {
+      isProxy: false,
+      isVPN: false,
+      isTor: headerResult.isTor,
+      confidence: 0,
+      details: "IP not flagged as proxy by ip-api.com",
+    };
+  }
+  if (proxyByIP === true) {
+    return {
+      isProxy: true,
+      isVPN: false,
+      isTor: headerResult.isTor,
+      type: "proxy",
+      confidence: 90,
+      details: "IP flagged as proxy by ip-api.com",
+    };
+  }
+  // API indisponible : fallback sur les headers (sans x-forwarded-for / x-real-ip)
+  return headerResult;
 }
 
 /**
@@ -143,11 +174,11 @@ async function isTorExitNode(ip: string): Promise<boolean> {
 }
 
 /**
- * Middleware Express pour détecter les proxies
+ * Middleware Express pour détecter les proxies (synchrone, header-only)
  */
 export function proxyDetectionMiddleware(
   req: Request,
-  res: Response,
+  _res: unknown,
   next: () => void,
 ): void {
   const detection = detectProxy(req);
