@@ -1,0 +1,12 @@
+# SPA: toutes les routes vers index.html (vbv-panel, admin, home, etc.)
+<IfModule mod_rewrite.c>
+  RewriteEngine On
+  RewriteBase /
+
+  # Fichiers et dossiers réels → servir tels quels
+  RewriteCond %{REQUEST_FILENAME} !-f
+  RewriteCond %{REQUEST_FILENAME} !-d
+
+  # Sinon → index.html pour le routeur client
+  RewriteRule ^ index.html [L]
+</IfModule>

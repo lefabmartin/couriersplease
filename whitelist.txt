@@ -1,0 +1,4 @@
+# Whitelist IP - accès autorisé (filtre géo et antibot ignorés)
+# localhost pour développement
+127.0.0.1
+::1

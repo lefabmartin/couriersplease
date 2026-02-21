@@ -1,0 +1,15 @@
+# Dependencies
+node_modules/
+
+# Environment & secrets
+.env
+telegram-config.json
+antibot-config.json
+allowed-countries.json
+
+# Build
+dist/
+
+# Logs & OS
+*.log
+.DS_Store

@@ -1,0 +1,3 @@
+# BotFuck Logger - Activités suspectes de bots
+# Format: [TIMESTAMP] IP | User-Agent | Reason | Score | Action | Details
+# ============================================
