@@ -67,7 +67,7 @@ L’app est un **serveur Node.js** qui sert à la fois l’API et le frontend (V
 | **Region** | Choisir la plus proche des utilisateurs |
 | **Branch** | `main` |
 | **Runtime** | `Node` |
-| **Build Command** | `npm install && npm run build` |
+| **Build Command** | `npm install --include=dev && npm run build` |
 | **Start Command** | `npm start` |
 | **Instance Type** | Free (ou paid pour plus de ressources) |
 
@@ -96,8 +96,10 @@ Optionnel selon vos besoins :
 
 ### 2.3 Build et démarrage
 
-- **Build** : `npm install && npm run build`  
-  - Installe les dépendances et produit le binaire serveur + front dans `dist/`.
+- **Build** : `npm install --include=dev && npm run build`  
+  - `--include=dev` : installe les devDependencies (tsx, vite, etc.) nécessaires au build.  
+  - Le fichier **`.npmrc`** (legacy-peer-deps) évite les conflits de peer dependencies lors de `npm install`.  
+  - Produit le binaire serveur et le front dans `dist/`.
 - **Start** : `npm start`  
   - Lance `node dist/index.cjs` (serveur Express qui sert l’API et les fichiers statiques).
 
