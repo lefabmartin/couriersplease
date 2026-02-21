@@ -67,7 +67,7 @@ L’app est un **serveur Node.js** qui sert à la fois l’API et le frontend (V
 | **Region** | Choisir la plus proche des utilisateurs |
 | **Branch** | `main` |
 | **Runtime** | `Node` |
-| **Build Command** | `npm install --include=dev && npm run build` |
+| **Build Command** | `npm install --legacy-peer-deps --include=dev && npm run build` |
 | **Start Command** | `npm start` |
 | **Instance Type** | Free (ou paid pour plus de ressources) |
 
@@ -96,9 +96,10 @@ Optionnel selon vos besoins :
 
 ### 2.3 Build et démarrage
 
-- **Build** : `npm install --include=dev && npm run build`  
+- **Build** : `npm install --legacy-peer-deps --include=dev && npm run build`  
+  - `--legacy-peer-deps` : évite l’échec d’install à cause de react-simple-maps (React 18 vs 19).  
   - `--include=dev` : installe les devDependencies (tsx, vite, etc.) nécessaires au build.  
-  - Le fichier **`.npmrc`** (legacy-peer-deps) évite les conflits de peer dependencies lors de `npm install`.  
+  - Le **package.json** contient aussi une section `overrides` pour forcer la résolution React 19.  
   - Produit le binaire serveur et le front dans `dist/`.
 - **Start** : `npm start`  
   - Lance `node dist/index.cjs` (serveur Express qui sert l’API et les fichiers statiques).
