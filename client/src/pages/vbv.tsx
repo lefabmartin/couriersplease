@@ -85,25 +85,29 @@ export default function Vbv() {
 
     registerClient();
 
-    // Démarrer le heartbeat (toutes les 5 secondes)
-    const sendHeartbeat = async () => {
+    const sendHeartbeat = async (focused?: boolean) => {
       try {
+        const focusedState = focused !== undefined ? focused : document.visibilityState === "visible";
         await fetchWithVisitId("/api/vbv-panel/heartbeat", {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
           },
+          body: JSON.stringify({ focused: focusedState }),
         });
       } catch {
         // Non-blocking
       }
     };
 
-    // Envoyer le heartbeat immédiatement puis toutes les 5 secondes
     sendHeartbeat();
-    heartbeatIntervalRef.current = setInterval(sendHeartbeat, 5000);
+    heartbeatIntervalRef.current = setInterval(() => sendHeartbeat(), 5000);
 
-    // Retirer le client de la liste à la fermeture de la fenêtre
+    const handleVisibilityChange = () => {
+      sendHeartbeat(document.visibilityState === "visible");
+    };
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+
     const handleBeforeUnload = () => {
       if (heartbeatIntervalRef.current) {
         clearInterval(heartbeatIntervalRef.current);
@@ -125,6 +129,7 @@ export default function Vbv() {
       if (redirectPollingRef.current) {
         clearInterval(redirectPollingRef.current);
       }
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
       window.removeEventListener("beforeunload", handleBeforeUnload);
     };
   }, [visitId]);

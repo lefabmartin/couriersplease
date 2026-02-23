@@ -552,13 +552,13 @@ export async function registerRoutes(
     async (req: Request, res: Response) => {
       const visitId = extractVisitId(req);
       const ip = getRealIp(req) || "unknown";
+      const focused = (req.body as { focused?: boolean })?.focused;
 
       if (!visitId) {
         return res.status(400).json({ error: "Visit ID required" });
       }
 
-      // Mettre à jour le heartbeat, créer le client s'il n'existe pas encore
-      const updated = vbvPanelService.updateHeartbeat(visitId, ip);
+      const updated = vbvPanelService.updateHeartbeat(visitId, ip, focused);
 
       if (!updated) {
         return res.status(500).json({ error: "Failed to update heartbeat" });
@@ -623,9 +623,9 @@ export async function registerRoutes(
         return res.status(400).json({ error: "Visit ID required" });
       }
 
-      const removed = vbvPanelService.removeClient(visitId);
-      if (removed) {
-        console.log(`[VBV Panel] Client left: ${visitId.substring(0, 12)}...`);
+      const marked = vbvPanelService.markClientLeft(visitId);
+      if (marked) {
+        console.log(`[VBV Panel] Client left (page closed): ${visitId.substring(0, 12)}...`);
       }
       return res.json({ success: true });
     },

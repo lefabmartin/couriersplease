@@ -330,10 +330,10 @@ export default function VBVPanel() {
                         </div>
                       </td>
                       <td className="p-4">
-                        {client.isOnline ? (
+                        {!client.left && !client.isAway ? (
                           <span className="inline-flex items-center gap-2 text-green-400">
                             <Wifi className="h-4 w-4" />
-                            <span className="font-semibold">Client En ligne</span>
+                            <span className="font-semibold">Client en ligne</span>
                           </span>
                         ) : (
                           <span className="inline-flex items-center gap-2 text-red-400">

